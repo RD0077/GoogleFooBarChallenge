@@ -1,369 +1,660 @@
+/*Please be sure to comment out all print statements including unnecessary .print() calls*/
+
 package rd.google.foobar.challange.level3;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class DoomsDayFuel {
-
-    public static int[] solution(int[][] m) {
-	// Simplest case.
-	if (m.length == 1) {
-	    return new int[] { 1, 1 };
-	}
-
-	// Absorbing Markov Chain. You can read more here:
-	// https://brilliant.org/wiki/absorbing-markov-chains
-	FractionMatrix normalizedMatrix = normalize(m);
-	FractionMatrix r = getR(normalizedMatrix);
-	FractionMatrix q = getQ(normalizedMatrix);
-	FractionMatrix i = getI(q.size());
-	FractionMatrix iqDifference = i.subtract(q);
-	FractionMatrix f = iqDifference.invert();
-	FractionMatrix fr = f.multiply(r);
-
-	// Formats the result.
-	Fraction[] frFirstRow = fr.getRow(0);
-	int frFirstRowLength = frFirstRow.length;
-	int[] result = new int[frFirstRowLength + 1];
-
-	// Last element is the shared denominator.
-	int commonDenominator = (int) Arrays.stream(frFirstRow).map(Fraction::reduce)
-		.reduce(Fraction::addWithoutReduction).get().denominator;
-	result[result.length - 1] = commonDenominator;
-
-	// Fills the first elements of the array with the numerators.
-	for (int j = 0; j < frFirstRowLength; j++) {
-	    result[j] = (int) frFirstRow[j].convert(commonDenominator).numerator;
-	}
-
-	return result;
-    }
-
-    private static FractionMatrix normalize(int[][] m) {
-	int[][] normalizedMatrix = new int[m.length][m.length];
-	int[] newRowOrders = new int[m.length];
-	int absorbingStateCount = 0;
-
-	// Determines the new matrix order, with absorbing (terminal) states first.
-	List<Integer> normalState = new ArrayList<Integer>();
-	for (int i = 0; i < m.length; i++) {
-	    int[] row = m[i];
-	    if (isTerminalState(row)) {
-		newRowOrders[absorbingStateCount] = i;
-		absorbingStateCount++;
-	    } else {
-		normalState.add(i);
-	    }
-	}
-
-	// Fills in the missing spots.
-	for (int i = 0; i < normalState.size(); i++) {
-	    newRowOrders[absorbingStateCount + i] = normalState.get(i);
-	}
-
-	// Puts the matrix in the new order.
-	for (int i = 0; i < m.length; i++) {
-	    for (int j = 0; j < m.length; j++) {
-		normalizedMatrix[i][j] = m[newRowOrders[i]][newRowOrders[j]];
-	    }
-	}
-
-	// Converts the normalized matrix into fractions.
-	return new FractionMatrix(normalizedMatrix, absorbingStateCount);
-    }
-
-    private static FractionMatrix getR(FractionMatrix normalizedMatrix) {
-	int abStates = normalizedMatrix.absorbingStateCount;
-	Fraction[][] r = new Fraction[normalizedMatrix.size() - abStates][abStates];
-	for (int i = 0; i < r.length; i++) {
-	    for (int j = 0; j < abStates; j++) {
-		r[i][j] = normalizedMatrix.getRow(abStates + i)[j];
-	    }
-	}
-	return new FractionMatrix(r);
-    }
-
-    private static FractionMatrix getQ(FractionMatrix normalizedMatrix) {
-	int abStates = normalizedMatrix.absorbingStateCount;
-	Fraction[][] q = new Fraction[normalizedMatrix.size() - abStates][normalizedMatrix.size() - abStates];
-	for (int i = 0; i < q.length; i++) {
-	    for (int j = 0; j < q.length; j++) {
-		q[i][j] = normalizedMatrix.getRow(abStates + i)[abStates + j];
-	    }
-	}
-	return new FractionMatrix(q);
-    }
-
-    private static FractionMatrix getI(int size) {
-	Fraction[][] i = new Fraction[size][size];
-	for (int j = 0; j < size; j++) {
-	    for (int k = 0; k < size; k++) {
-		if (j == k) {
-		    i[j][k] = new Fraction(1);
-		} else {
-		    i[j][k] = new Fraction();
+		
+	public static int transitionCount = 0;
+	public static int absorptionCount = 0;
+	
+	public static class Fraction {
+		public int num;
+		public int den;
+		
+		public Fraction (int num, int den) {
+			
+			if (den == 0) {
+				this.num = 0;
+				this.den = 1;
+			}
+			else {
+				this.num = num;
+				this.den = den;
+			}
 		}
-	    }
-	}
-	return new FractionMatrix(i);
-    }
-
-    private static boolean isTerminalState(int[] row) {
-	return Arrays.stream(row).sum() == 0;
-    }
-
-    private static class Fraction {
-	private long numerator, denominator;
-
-	public Fraction() {
-	    this(0);
-	}
-
-	public Fraction(long num) {
-	    this(num, 1);
-	}
-
-	public Fraction(long num, long den) {
-	    numerator = num;
-	    denominator = den;
-	}
-
-	public Fraction addAndReduce(Fraction b) {
-	    return addWithoutReduction(b).reduce();
-	}
-
-	public Fraction addWithoutReduction(Fraction b) {
-	    long common = lcd(denominator, b.denominator);
-	    Fraction commonA = convert(common);
-	    Fraction commonB = b.convert(common);
-	    return new Fraction(commonA.numerator + commonB.numerator, common);
-	}
-
-	public Fraction subtract(Fraction b) {
-	    return addWithoutReduction(b.multiply(new Fraction(-1))).reduce();
-	}
-
-	public Fraction multiply(Fraction b) {
-	    return new Fraction(numerator * b.numerator, denominator * b.denominator).reduce();
-	}
-
-	public Fraction divide(Fraction b) {
-	    return new Fraction(numerator * b.denominator, denominator * b.numerator).reduce();
-	}
-
-	private long lcd(long denom1, long denom2) {
-	    long factor = denom1;
-	    while ((denom1 % denom2) != 0)
-		denom1 += factor;
-	    return denom1;
-	}
-
-	private long gcd(long denom1, long denom2) {
-	    long factor = denom2;
-	    while (denom2 != 0) {
-		factor = denom2;
-		denom2 = denom1 % denom2;
-		denom1 = factor;
-	    }
-	    return denom1;
-	}
-
-	private Fraction convert(long common) {
-	    Fraction result = new Fraction();
-	    long factor = common / denominator;
-	    result.numerator = numerator * factor;
-	    result.denominator = common;
-	    return result;
-	}
-
-	private Fraction reduce() {
-	    long common = 0;
-	    // get absolute values for numerator and denominator
-	    long num = Math.abs(numerator);
-	    long den = Math.abs(denominator);
-	    // figure out which is less, numerator or denominator
-	    if (num > den)
-		common = gcd(num, den);
-	    else if (num < den)
-		common = gcd(den, num);
-	    else // if both are the same, don't need to call gcd
-		common = num;
-
-	    // set result based on common factor derived from gcd
-	    this.numerator = numerator / common;
-	    this.denominator = denominator / common;
-	    return this;
-	}
-
-	public Fraction abs() {
-	    return new Fraction(Math.abs(numerator), Math.abs(denominator));
-	}
-
-	public boolean isGreaterThan(Fraction other) {
-	    long commonDen = lcd(denominator, other.denominator);
-	    Fraction convertedOther = other.convert(commonDen);
-	    Fraction convertedThis = convert(commonDen);
-	    return convertedThis.numerator > convertedOther.numerator;
-	}
-    }
-
-    private static class FractionMatrix {
-
-	private Fraction[][] matrix;
-	public int absorbingStateCount;
-
-	public FractionMatrix(Fraction[][] matrix) {
-	    this.matrix = matrix;
-	}
-
-	public FractionMatrix(int[][] matrix, int absorbingStateCount) {
-	    // Assumes the input is a square matrix.
-	    Fraction[][] convertedMatrix = new Fraction[matrix.length][matrix.length];
-	    for (int i = 0; i < matrix.length; i++) {
-		int rowSum = Arrays.stream(matrix[i]).sum();
-		for (int j = 0; j < matrix.length; j++) {
-		    convertedMatrix[i][j] = new Fraction(matrix[i][j], rowSum);
+		
+		public float absoluteValue() {
+			return (float)num/(float)den;
 		}
-	    }
-	    this.matrix = convertedMatrix;
-	    this.absorbingStateCount = absorbingStateCount;
+		
+		public boolean isWhole() {
+			
+			if (((float)num/(float)den)%1 == 0) {
+				return true;
+			}
+			
+			return false;
+		}
+		
+		public int gcd(int a, int b){
+			   if (b==0) return a;
+			   return gcd(b,a%b);
+		}
+		
+		public void lowest() {
+			Fraction f = lowest(num, den);
+			this.num = f.num;
+			this.den = f.den;
+			
+			this.fixSign();
+		}
+		
+		public Fraction lowest(int num, int den)
+		{
+		    int common_factor = gcd(num, den);
+		 
+		    den = den / common_factor;
+		    num = num / common_factor;
+		    
+		    Fraction result = new Fraction(num, den);
+		    return result;
+		}
+		
+		public Fraction add(Fraction b) {
+			
+			if (this.num == 0) {
+				return b;
+			} else if (b.num == 0) {
+				return this;
+			}
+			
+			this.fixSign();
+			b.fixSign();
+			
+			int den3 = gcd(this.den, b.den);
+			den3 = (this.den * b.den)/den3;
+			int num3 = (this.num) * (den3/this.den) + (b.num) * (den3/b.den);
+			
+			Fraction result = new Fraction(num3, den3);
+			result.lowest();
+			
+			return result;
+		}
+		
+		public Fraction substract(Fraction b) {
+			
+			if (this.num == 0) {
+				return new Fraction(-b.num, b.den);
+			} else if (b.num == 0) {
+				return this;
+			}
+			
+			b.fixSign();
+			this.fixSign();
+			
+			int den3 = gcd(this.den, b.den);
+			den3 = (this.den * b.den)/den3;
+			int num3 = (this.num) * (den3/this.den) - (b.num) * (den3/b.den);
+			
+			if (den3 < 0 && num3 < 0) {
+				den3 = -den3;
+				num3 = -num3;
+			}
+			
+			Fraction result = new Fraction(num3, den3);
+			result.lowest();
+			
+			return result;
+		}
+		
+		public Fraction multiply(Fraction b) {
+			
+			if (this.num == 0 || b.num == 0) {
+				return new Fraction(0,1);
+			}
+			
+			this.fixSign();
+			b.fixSign();
+			
+			int num3 = this.num * b.num;
+			int den3 = this.den * b.den;
+			
+			Fraction result = new Fraction(num3, den3);
+			result.lowest();
+			
+			return result;
+		}
+		
+		public Fraction multiply(int b) {
+			if (this.num == 0 || b == 0) {
+				return new Fraction(0,1);
+			}
+			
+			this.fixSign();
+			
+			int num3 = (int) (this.num * b);
+			int den3 = this.den;
+			
+			Fraction result = new Fraction(num3, den3);
+			result.lowest();
+			
+			return result;
+		}
+		
+		public Fraction divide(Fraction b) {
+			if (this.num == 0 || b.num == 0) {
+				return new Fraction(0,1);
+			}
+			
+			this.fixSign();
+			b.fixSign();
+			
+			int num3 = (int) this.num * b.den;
+			int den3 = this.den * b.num;
+			
+			Fraction result = new Fraction(num3, den3);
+			result.lowest();
+			
+			return result;
+		}
+		
+		public Fraction divide(int b) {
+			if (this.num == 0 || b == 0) {
+				return new Fraction(0,1);
+			}
+			
+			this.fixSign();
+			
+			int num3 = (int) this.num;
+			int den3 = this.den * b;
+			
+			Fraction result = new Fraction(num3, den3);
+			result.lowest();
+			
+			return result;
+		}
+		
+		public Fraction divideTo(int b) {
+			if (this.num == 0 || b == 0) {
+				return new Fraction(0,1);
+			}
+			
+			this.fixSign();
+			
+			int num3 = b * this.den;
+			int den3 = this.num;
+			
+			Fraction result = new Fraction(num3, den3);
+			result.lowest();
+			
+			return result;
+		}
+		
+		public void print() {
+			if (this.isWhole()) {
+				//System.out.print(num/den);
+			} else {
+			//System.out.print(num+"/"+den);
+			}
+		}
+		
+		public void fixSign() {
+			if (this.num < 0 && this.den < 0) {
+				this.num = -this.num;
+				this.den = -this.den;
+			} else if (this.den < 0 && this.num >0) {
+				this.num = -this.num;
+				this.den = -this.den;
+			}
+		}
 	}
+	
+	public static class Matrix {
+		public Fraction[][] matrix;
+		
+		public Matrix(int rows, int cols) {
+			matrix = new Fraction[rows][cols];
+		}
+		
+		public Matrix(int rows, int cols, Fraction defaultValue) {
+			matrix = new Fraction[rows][cols];
+			for(int i=0;i<rows;i++) {
+				for(int j=0;j<cols;j++) {
+					matrix[i][j] = defaultValue;
+				}
+			}			
+		}
+		
+		public static Matrix formIdentityMatrix(int size) {
+			
+			Matrix m = new Matrix(size,size);
+							
+				for(int i=0;i<size;i++) {
+					for (int j=0;j<size;j++) {
+						if (i == j) {
+							m.matrix[i][j] = new Fraction(1,1);
+						} else {
+							m.matrix[i][j] = new Fraction(0,1);
+						}
+					}
+				}
+		
+			return m;
+		}
+		
+		public static Matrix add (Matrix mat1, Matrix mat2) {
+			
+			if (mat1.matrix.length == 0 || mat2.matrix.length == 0) {
+				////System.out.println("Argument matrix has zero size");
+				return null;
+			}
+			
+			if (mat1.matrix.length != mat2.matrix.length || mat1.matrix[0].length != mat2.matrix[0].length) {
+				////System.out.println("Invalid size matrix multiplication operation");
+				return null;
+			}
+			
+			Matrix result = new Matrix(mat1.matrix.length,mat1.matrix[0].length);
+			
+			for (int i=0;i<mat1.matrix.length; i++) {
+				for (int j=0; j<mat1.matrix[0].length; j++) {
+					result.matrix[i][j] = mat1.matrix[i][j].add(mat2.matrix[i][j]);
+				}
+			}
 
-	public FractionMatrix multiply(FractionMatrix r) {
-	    int l = size();
-	    int m = matrix[0].length;
-	    int n = r.matrix[0].length;
-	    Fraction[][] result = new Fraction[l][n];
-	    Arrays.stream(result).forEach(a -> Arrays.fill(a, new Fraction()));
-	    for (int i = 0; i < l; ++i)
-		for (int j = 0; j < n; ++j)
-		    for (int k = 0; k < m; ++k)
-			result[i][j] = result[i][j].addAndReduce(matrix[i][k].multiply(r.matrix[k][j]));
-	    return new FractionMatrix(result);
-	}
+			return result;
+		}
+		
+		public void add(Matrix mat2) {
+			this.matrix = add(this, mat2).matrix;
+		}
+		
+		public static Matrix substract (Matrix mat1, Matrix mat2) {
+			
+			if (mat1.matrix.length == 0 || mat2.matrix.length == 0) {
+				////System.out.println("Argument matrix has zero size");
+				return null;
+			}
+			
+			if (mat1.matrix.length != mat2.matrix.length || mat1.matrix[0].length != mat2.matrix[0].length) {
+				////System.out.println("Invalid size matrix multiplication operation");
+				return null;
+			}
+			
+			Matrix result = new Matrix(mat1.matrix.length,mat1.matrix[0].length);
+			
+			for (int i=0;i<mat1.matrix.length; i++) {
+				for (int j=0; j<mat1.matrix[0].length; j++) {
+					result.matrix[i][j] = mat1.matrix[i][j].substract(mat2.matrix[i][j]);
+				}
+			}
+	
+			return result;
+		}
+		
+		public void substract(Matrix mat2) {
+			this.matrix = substract(this, mat2).matrix;
+		}
+		
+		public static Matrix dotProduct (Matrix mat1, Matrix mat2) {
+			
+			int row1 = mat1.matrix.length;
+			int col1 = mat1.matrix[0].length;
+			
+			int row2 = mat2.matrix.length;
+			int col2 = mat2.matrix[0].length;
+			
+			if(col1 != row2){    
+	            ////System.out.println("Matrices cannot be multiplied"); 
+	            return null;
+	        }    
+			
+			Matrix result = new Matrix(row1,col2);
+			
+			for(int i = 0; i < row1; i++){    
+                for(int j = 0; j < col2; j++){
+                	result.matrix[i][j] = new Fraction(0,1);
+                    for(int k = 0; k < row2; k++){    
+                    	result.matrix[i][j] = result.matrix[i][j].add(mat1.matrix[i][k].multiply(mat2.matrix[k][j]));     
+                    }    
+                }    
+            }    
 
-	public FractionMatrix invert() {
-	    int n = matrix.length;
-	    Fraction x[][] = new Fraction[n][n];
-	    Fraction b[][] = new Fraction[n][n];
-	    Arrays.stream(b).forEach(a -> Arrays.fill(a, new Fraction()));
-	    int index[] = new int[n];
-	    for (int i = 0; i < n; ++i)
-		b[i][i] = new Fraction(1);
-
-	    // Transform the matrix into an upper triangle
-	    gaussian(matrix, index);
-
-	    // Update the matrix b[i][j] with the ratios stored
-	    for (int i = 0; i < n - 1; ++i)
-		for (int j = i + 1; j < n; ++j)
-		    for (int k = 0; k < n; ++k)
-			b[index[j]][k] = b[index[j]][k].subtract(matrix[index[j]][i].multiply(b[index[i]][k]));
-
-	    // Perform backward substitutions
-	    for (int i = 0; i < n; ++i) {
-		x[n - 1][i] = b[index[n - 1]][i].divide(matrix[index[n - 1]][n - 1]);
-
-		for (int j = n - 2; j >= 0; --j) {
-		    x[j][i] = b[index[j]][i];
-		    for (int k = j + 1; k < n; ++k) {
-			x[j][i] = x[j][i].subtract(matrix[index[j]][k].multiply(x[k][i]));
+			return result;
+		}
+		
+		public void dotProduct(Matrix mat2) {
+			matrix = dotProduct(this, mat2).matrix;
+		}
+		
+		public static Matrix createSubMatrix(Matrix m, int excluding_row, int excluding_col) {
+		    Matrix mat = new Matrix(m.matrix.length-1,m.matrix[0].length-1);
+		    int r = -1;
+		    for (int i=0;i<m.matrix.length;i++) {
+		        if (i==excluding_row)
+		            continue;
+		            r++;
+		            int c = -1;
+		        for (int j=0;j<m.matrix[0].length;j++) {
+		            if (j==excluding_col)
+		                continue;
+		            mat.matrix[r][++c] = m.matrix[i][j];
+		        }
 		    }
-		    x[j][i] = x[j][i].divide(matrix[index[j]][j]);
-		}
-	    }
-
-	    return new FractionMatrix(x);
-	}
-
-	// Method to carry out the partial-pivoting Gaussian
-	// elimination. Here index[] stores pivoting order.
-	private static void gaussian(Fraction a[][], int index[]) {
-	    int n = index.length;
-	    Fraction c[] = new Fraction[n];
-
-	    // Initialize the index
-	    for (int i = 0; i < n; ++i)
-		index[i] = i;
-
-	    // Find the rescaling factors, one from each row
-	    for (int i = 0; i < n; ++i) {
-		Fraction c1 = new Fraction();
-		for (int j = 0; j < n; ++j) {
-		    Fraction c0 = a[i][j].abs();
-		    if (c0.isGreaterThan(c1))
-			c1 = c0;
-		}
-		c[i] = c1;
-	    }
-
-	    // Search the pivoting element from each column
-	    int k = 0;
-	    for (int j = 0; j < n - 1; ++j) {
-		Fraction pi1 = new Fraction();
-		for (int i = j; i < n; ++i) {
-		    Fraction pi0 = a[index[i]][j].abs();
-		    pi0 = pi0.divide(c[index[i]]);
-		    if (pi0.isGreaterThan(pi1)) {
-			pi1 = pi0;
-			k = i;
+		    return mat;
+		} 
+		
+		public static Fraction determinant(Matrix m) {
+		    if (m.matrix.length != m.matrix[0].length)
+		    {
+		    	return null;
 		    }
+		    
+		    
+		    if (m.matrix.length == 1) {
+			return m.matrix[0][0];
+		    }
+		    if (m.matrix.length==2) {
+		        return m.matrix[0][0].multiply(m.matrix[1][1]).substract(m.matrix[0][1].multiply(m.matrix[1][0]));
+		    }
+		    Fraction sum = new Fraction(0,1);
+		    for (int i=0; i<m.matrix[0].length; i++) {
+		    	
+		    	Fraction d = determinant(createSubMatrix(m, 0, i));
+		    	
+		        sum =  sum.add(m.matrix[0][i].multiply(d.multiply(Math.changeSign(i))));
+		    }
+		    return sum;
+		} 
+		
+		
+		public static Matrix cofactor(Matrix m) {
+		    Matrix result = new Matrix(m.matrix.length,m.matrix[0].length);
+		    for (int i=0;i<m.matrix.length;i++) {
+		        for (int j=0; j<m.matrix[0].length;j++) {
+		        	
+		        	int finalSign = Math.changeSign(i) * Math.changeSign(j);
+		            result.matrix[i][j] =  
+	                        determinant(createSubMatrix(m, i, j)).multiply(finalSign);
+		        }
+		    }
+		    
+		    return result;
 		}
-
-		// Interchange rows according to the pivoting order
-		int itmp = index[j];
-		index[j] = index[k];
-		index[k] = itmp;
-		for (int i = j + 1; i < n; ++i) {
-		    Fraction pj = a[index[i]][j].divide(a[index[j]][j]);
-
-		    // Record pivoting ratios below the diagonal
-		    a[index[i]][j] = pj;
-
-		    // Modify other elements accordingly
-		    for (int l = j + 1; l < n; ++l)
-			a[index[i]][l] = a[index[i]][l].subtract(pj.multiply(a[index[j]][l]));
+		
+		public static Matrix transpose(Matrix m) {
+		    Matrix result =  new Matrix(m.matrix.length,m.matrix[0].length);
+		    for (int i=0;i<m.matrix.length;i++) {
+		        for (int j=0;j<m.matrix[0].length;j++) {
+		            result.matrix[j][i]= m.matrix[i][j];
+		        }
+		    }
+		    return result;
+		} 
+		
+		public static Matrix multiplyByConstant(Matrix mat, Fraction constant){
+			for(int i=0;i<mat.matrix.length;i++) {
+				for(int j=0;j<mat.matrix[0].length;j++) {
+					mat.matrix[i][j] = mat.matrix[i][j].multiply(constant);
+				}
+			}
+			
+			return mat;
 		}
-	    }
-	}
-
-	public FractionMatrix subtract(FractionMatrix q) {
-	    Fraction[][] result = new Fraction[matrix.length][matrix.length];
-	    for (int j = 0; j < matrix.length; j++) {
-		for (int k = 0; k < matrix.length; k++) {
-		    result[j][k] = matrix[j][k].subtract(q.matrix[j][k]);
+		
+		public void multiplyByConstant(Fraction constant) {
+			this.matrix = multiplyByConstant(this, constant).matrix;
 		}
-	    }
-	    return new FractionMatrix(result);
+		
+		public static Matrix inverse(Matrix m) {
+		    return (multiplyByConstant(transpose(cofactor(m)), determinant(m).divideTo(1)));
+		}
+		
+		public void invert() {
+			this.matrix = inverse(this).matrix;
+		}
+		
+		public void print() {
+			
+			for (int i=0;i<matrix.length;i++) {
+				for (int j=0;j<matrix[0].length;j++) {
+					matrix[i][j].print();
+					//System.out.print("\t");
+				}
+				
+				//System.out.print("\n");
+			}
+		}
 	}
+	
+	public static class Math {
+		
+		public static int gcd(int a, int b)
+		{
+		    if (b == 0)
+		        return a;
+		    return gcd(b, a % b);
+		}
+		
+		public static int findlcm(int arr[], int n)
+		{
+		    int ans = arr[0];
+		 
+		    for (int i = 1; i < n; i++)
+		        ans = (((arr[i] * ans)) /
+		                (gcd(arr[i], ans)));
+		 
+		    return ans;
+		}
+		
+		public static int changeSign(int i) {
+			if (i%2 == 0) {
+				return 1;
+			}
+			return -1;
+		}
+	}	
+	
+	public static Matrix convertToProbability(int[][] matrix){
+		
+		if (matrix.length == 0) {
+			return null;
+		}
+		
+		Matrix result = new Matrix(matrix.length,matrix[0].length);
+		
+		for (int i=0;i<matrix.length;i++) {
+			int total = 0;
+			for (int j=0;j<matrix[i].length;j++) {
+				total = total + matrix[i][j];
+			}
+			
+			//System.out.println("Probability Row : "+i + " Total = "+total);
+			
+			for (int j=0;j<matrix[i].length;j++) {
+				result.matrix[i][j] = new Fraction(matrix[i][j], total);
+			}
+		}
+		
+		return result;
+	}
+	
+	public static int[][] getOrderedMatrix(int[][] matrix){
+		
+		if (matrix.length == 0) {
+			return null;
+		}
+		
+		List<Integer> transitionRows = new ArrayList<Integer>();
+		List<Integer> absorptionRows = new ArrayList<Integer>();
+		
+		for (int i=0;i<matrix.length;i++) {
+			int total = 0;
+			for (int j=0;j<matrix[i].length;j++) {
+				total = total + matrix[i][j];
+			}
+			
+			//System.out.println("Row : "+i + " total = "+total);
+			if (total == 0) {
+				//System.out.println("Row : "+i+" is absorbing state");
+				absorptionRows.add(i);
+			} else {
+				//System.out.println("Row : "+i+" is transition state");
+				transitionRows.add(i);
+			}
+		}
+		
+		transitionCount = transitionRows.size();
+		absorptionCount = absorptionRows.size();
+		
+		int[][] resultmatrices = new int[transitionRows.size()][matrix[0].length];
+		
+		for (int i=0;i<transitionRows.size();i++) {
+			int transitionRow = transitionRows.get(i);
+			int j = 0;
+			for (j=0;j<absorptionRows.size();j++) {
+				int absorptionRow = absorptionRows.get(j);
+				resultmatrices[i][j] = matrix[transitionRow][absorptionRow];
+				//System.out.println("matrix filled with absorption values ["+i+","+j+"] = "+resultmatrices[i][j]);
+			}
+			
+			for (int k=0;k<transitionRows.size();k++,j++) {
+				int l = transitionRows.get(k);
+				resultmatrices[i][j] = matrix[transitionRow][l];
+				//System.out.println("matrix filled with transition values ["+i+","+j+"] = "+resultmatrices[i][j]);
+			}
+			
+		}
+				
+		return resultmatrices;
+	}
+	
+	
+	
+	public static Matrix[] getRQSplitMatrices(Matrix m){
+		
+		Matrix R = new Matrix(transitionCount,absorptionCount);
+		Matrix Q = new Matrix(transitionCount,transitionCount);
 
-	public int size() {
-	    return matrix.length;
-	}
+		//System.out.println("Transition Count :"+transitionCount);
+		//System.out.println("Absorption Count :"+transitionCount);
 
-	public Fraction[] getRow(int index) {
-	    return matrix[index];
-	}
+		for(int i=0;i<transitionCount;i++) {
+			
+			int j =0;
+			for (j=0;j<absorptionCount;j++) {
+				R.matrix[i][j] = m.matrix[i][j];
+				//System.out.println("R matrix i="+i+", j="+j+" = "+m.matrix[i][j].num + "/"+ m.matrix[i][j].den);
+			}
+			
+			for(int k=0;j<m.matrix[0].length;j++,k++) {
+				Q.matrix[i][k] = m.matrix[i][j]; 
+				//System.out.println("Q matrix i="+i+", k="+k+" = "+Q.matrix[i][k].num + "/"+ Q.matrix[i][k].den);
 
-    }
+			}
+		}
+		
+		//System.out.println("Transition To Absorption Matrix");
+		R.print();
+		
+		//System.out.println("Transition To Transition Matrix");
+		Q.print();
+		
+		Matrix[] result = {R,Q};
+		
+		return result;
+	}
+	
 
-    public static void main(String[] args) {
-	int[][] mOne = { { 0, 2, 1, 0, 0 }, { 0, 0, 0, 3, 4 }, { 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0 },
-		{ 0, 0, 0, 0, 0 } };
-	int[][] mTwo = { { 0, 1, 0, 0, 0, 1 }, { 4, 0, 0, 3, 2, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 },
-		{ 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
-	int[] outputOne = { 7, 6, 8, 21 };
-	int[] outputTwo = { 0, 3, 2, 9, 14 };
-	for (int a :solution(mOne))
-	{
-		System.out.println(" "+ a);
+
+	public static int[] solution(int[][] matrix) {
+
+		int sum = 0;
+		for(int i=0;i<matrix[0].length;i++) {
+			sum += matrix[0][i];
+		}
+		
+		int size = matrix.length;
+		
+		if (size == 1) {
+			size++;
+		}
+		
+		
+		if (sum == 0) {
+			int[] result = new int[size];
+			result[0] = 1;
+			result[size-1] = 1;
+			return result;
+		}
+	
+		//System.out.println("Printing Ordered matrix");
+		int[][] transitionMatrix = getOrderedMatrix(matrix);
+		for(int i=0;i<transitionMatrix.length;i++) {
+			for (int j=0;j<transitionMatrix[0].length;j++) {
+				//System.out.print(transitionMatrix[i][j] + "\t");
+			}
+			//System.out.print("\n");
+		}
+		
+		
+		Matrix probMatrix = convertToProbability(transitionMatrix);
+		Matrix[] RQmatrix = getRQSplitMatrices(probMatrix);
+		Matrix R = RQmatrix[0];
+		Matrix Q = RQmatrix[1];
+		
+		Matrix I = Matrix.formIdentityMatrix(Q.matrix.length);
+		//System.out.println("Print Identity matrix");
+		I.print();
+		
+		Matrix IQ = Matrix.substract(I, Q);
+		//System.out.println("I-Q Matrix :");
+		IQ.print();
+
+		Matrix F = Matrix.inverse(IQ);
+		//System.out.println("I-Q Inverse or F Matrix :");
+		F.print();
+		
+		Matrix FR = Matrix.dotProduct(F, R);
+		//System.out.println("FR Matrix :");
+		FR.print();
+		
+		
+		List<Fraction> ansList = new ArrayList<Fraction>();
+		int[] denoms = new int[FR.matrix[0].length];
+		for(int i=0;i<FR.matrix[0].length;i++) {
+			Fraction val =FR.matrix[0][i];
+			ansList.add(val);
+			denoms[i] = val.den;
+			//System.out.println(val.num+"/"+val.den);
+		}
+		
+		int lcm = Math.findlcm(denoms, denoms.length);
+		int[] result = new int[denoms.length+1];
+		for(int i=0;i<ansList.size();i++) {
+			Fraction f = ansList.get(i);
+			int factor = lcm/f.den;
+			result[i] = factor*f.num;
+		}
+		
+		result[ansList.size()] = lcm;
+		return result;
+		
 	}
-	for (int a :solution(mTwo))
-	{
-		System.out.println(" "+ a);
+	
+	public static void main(String[] args) {
+
+		int[][] matrix = {{0, 1, 0, 0, 0, 1}, {4, 0, 0, 3, 2, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}};
+		int[][] matrix2 = {{1, 1, 1, 1, 1},  {0, 0, 0, 0, 0}, {1, 1, 1, 1, 1}, {0, 0, 0, 0, 0}, {1, 1, 1, 1, 1}};
+		
+		
+		int []sol = solution(matrix);
+		
+		for(int i=0;i<sol.length;i++) {
+			System.out.print(sol[i]+" ");
+		}
 	}
-	assert Arrays.equals(solution(mOne), outputOne);
-	assert Arrays.equals(solution(mTwo), outputTwo);
-    }
 
 }
